@@ -1,0 +1,206 @@
+---
+title: "Script"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+
+
+
+```{r libInstall}
+
+### install.packages(dplyr)
+### install.package(ggplot2)
+
+library(dplyr)
+library(ggplot2)
+
+nms = paste0("X", seq(1,13,1))
+
+Matrices = readxl::read_xlsx("Liquid Assay Data for R (Outliers Removed).xlsx",
+                           col_names = FALSE ) %>%
+  purrr::set_names(nms)
+
+CreateSplites = Matrices %>%
+  mutate(ReplicateInd = ifelse(!is.na(X13) , paste0("REP",row_number() ), NA)) %>%
+  tidyr::fill(ReplicateInd, .direction = "down") %>%
+  filter(!is.na(X1)) %>%
+  split(.$ReplicateInd)
+
+Indice = as.list( seq(1, length(CreateSplites),1) )
+
+CreateByRep = function(x, y, Dimensions) {
+  
+  Scalar = x %>%
+    select(13) %>%
+    filter(row_number() == 1) %>%
+    pull(X13)
+  
+  Matrices2 = x %>%
+    select(1:Dimensions) %>%
+    mutate_all(funs(./Scalar))
+  
+  Matrices3 = Matrices2 %>%
+    purrr::set_names(LETTERS[1:Dimensions]) %>%
+    mutate(RowNms = LETTERS[1:Dimensions]) %>%
+    tidyr::gather(Key, value, -RowNms)
+  
+  
+  Diagonal_a = Matrices2 %>%
+    as.matrix(.) %>%
+    diag()
+  
+  FullGrid = expand.grid(LETTERS[1:Dimensions], LETTERS[1:Dimensions])
+  Diagonal = tibble(Letters = LETTERS[1:Dimensions], val = Diagonal_a)
+  
+  Products = FullGrid %>%
+    inner_join(Diagonal , by = c("Var1" = "Letters") ) %>%
+    inner_join(Diagonal , by = c("Var2" = "Letters") ) %>%
+    filter(Var1 != Var2) %>%
+    mutate(DiagonalProducts = val.x * val.y) %>%
+    inner_join(Matrices3 , by = c("Var1"="RowNms", "Var2" = "Key")) %>%
+    mutate(ReplicateNumber = paste0("Replicate-",y))
+  
+}
+
+ListOfCals = purrr::pmap(list(CreateSplites, Indice) , CreateByRep, 12) %>%
+  bind_rows(.) 
+
+```
+
+There are six replicates in the original Excel dataset. The first portion of the program takes the six replicates in the Excel file. It bind them together. 
+
+It then creates a dataset with all of the unique combination from A to L.
+
+This leaves us with 132 rows, or 144 - 12. There are 12 rows which are the diagonal products. 
+
+Finally, we make two comparisons: 
+
+1.  We use a t-test to compare the actual values (the diagonal elements) to the predicted values (the products of different elements) and determine whether we can reject the null that there is no difference between the diagonal products and the actual value. 
+2.  We use a t-test to again compare the actual and predicted values. However, to determine whether we can reject the null, we adjust the p-value. We use the Benjamini & Hochberg (1995) adjustment. 
+
+
+
+```{r StatisticalTesting}
+
+CreateTtests = function(x, y) {
+  
+  Out2 = ListOfCals %>%
+    filter( (Var1 == x & Var2 == y) | (Var1 == y & Var2 == x) ) 
+  
+   pval <- t.test( rep(unique(Out2$DiagonalProducts), 7) , rep(Out2$value))$p.value
+   
+   Combination1 = x
+   Combination2 = y
+   
+   out3 = tibble(pvalue = pval, 
+                 Combination1 = Combination1, Combination2 = Combination2) 
+   
+     
+}
+
+AllLists = expand.grid((LETTERS[1:12]), (LETTERS[1:12])) %>%
+  filter(Var1 != Var2)
+
+Var1List = AllLists %>% 
+  select(Var1) %>%
+  pull(Var1) %>%
+  as.list(.)
+
+Var2List = AllLists %>% 
+  select(Var2) %>%
+  pull(Var2) %>%
+  as.list(.)
+
+Method2 = purrr::map2( Var1List, Var2List, CreateTtests) %>%
+  bind_rows(.) %>%
+  distinct(pvalue, .keep_all = TRUE)  %>%
+  group_by(Combination1) %>%
+  mutate(pAdj = p.adjust(pvalue, method = "BH")) %>%
+  ungroup() 
+  
+Method3 = Method2 %>%
+  mutate_at(vars(pvalue, pAdj), funs(case_when(. < .01 ~ "Below .01",
+                                               . > .01 & . < .05 ~ "Between .01 and .05",
+                                               TRUE ~ "Above .05")))
+
+colors <- c("yellow", "red", "blue")
+
+HeatMap1 = Method2 %>%
+  ggplot(.,aes(x = Combination1, y = Combination2, fill = pvalue)) + 
+  geom_tile() + 
+  theme_minimal()
+
+
+HeatMap2 = Method2 %>%
+  ggplot(.,aes(x = Combination1, y = Combination2, fill = pAdj)) + 
+  geom_tile() + 
+  theme_minimal()
+
+
+HeatMap3 = Method3 %>%
+  ggplot(.,aes(x = Combination1, y = Combination2, fill = pvalue)) + 
+  geom_tile() + 
+  scale_fill_manual(values = colors) +
+  theme_minimal()
+
+
+HeatMap4 = Method3 %>%
+  ggplot(.,aes(x = Combination1, y = Combination2, fill = pAdj)) + 
+  geom_tile() + 
+  scale_fill_manual(values = colors) +
+  theme_minimal()
+
+
+```
+
+The first method provides the un-adjusted t-tests. 
+
+```{r}
+HeatMap1
+```
+
+The second heat map shows the categorized p-values. The two categories are below .05, and above .05. 
+
+```{r}
+HeatMap3
+```
+
+The second method uses the correct adjustment, an independent t-test method. We use the `R` function `p.adjust`. This is the appropriate adjustment based on prior literature. This is much less powerful, and yields no combinations with a p-value of below .05.
+
+
+
+
+```{r}
+HeatMap2
+```
+
+
+```{r}
+HeatMap4
+```
+
+
+The two csvs with pvalue and combinations can be found in the Output folder. 
+
+1.  Method1.csv - corresponds to the first heat map. 
+2.  Method2.csv - corresponds to the second heat map. 
+
+
+```{r csvs}
+
+
+readr::write_csv(Method2 %>% arrange(pAdj), 
+                 "Method1NoOutliers.csv")
+
+readr::write_csv(Method2 %>% arrange(pvalue), 
+                 "Method2NoOutliers.csv")
+
+
+```
+
+
+
