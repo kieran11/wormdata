@@ -3,6 +3,7 @@ THis repository has the worm data and the script to analyze the data.
 
 The repository can be cloned, and the script can be run in RStudio without any changes to any part of the script. 
 
+The .Rmd file has all the code to replicate the analysis. 
 
 # steps and method
 
