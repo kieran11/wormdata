@@ -21,7 +21,7 @@ library(ggplot2)
 
 nms = paste0("X", seq(1,13,1))
 
-Matrices = readxl::read_xlsx("Liquid Assay Data for R (Outliers Removed).xlsx",
+Matrices = readr::read_csv("Liquid Assay Data for R (Including Outliers).csv",
                            col_names = FALSE ) %>%
   purrr::set_names(nms)
 
