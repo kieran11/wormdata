@@ -5,6 +5,7 @@ The repository can be cloned, and the script can be run in RStudio without any c
 
 The .Rmd file has all the code to replicate the analysis. 
 
+The four figures are here: wormdataanalysis_files/figure-gfm. They are four .png files. 
 # steps and method
 
 There are six replicates in the original Excel dataset. The first portion of the program takes the six replicates in the Excel file. It bind them together. 
