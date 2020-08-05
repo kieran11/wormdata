@@ -44,3 +44,8 @@ folder.
 
 1.  Method1.csv - corresponds to the first heat map.
 2.  Method2.csv - corresponds to the second heat map.
+
+The next plots show the un-adjusted t-tests but with different
+colours\`.
+
+![](wormdataanalysis_files/figure-gfm/NewColours%20-1.png)<!-- -->

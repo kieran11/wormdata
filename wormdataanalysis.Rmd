@@ -203,5 +203,19 @@ readr::write_csv(Method2 %>% arrange(pvalue),
 
 ```
 
+The next plots show the un-adjusted t-tests but with different colours`. 
+
+```{r NewColours , eval = TRUE}
+
+
+HeatMapNC =  Method2 %>%
+  ggplot(.,aes(x = Combination1, y = Combination2, fill = pvalue)) + 
+  geom_tile() + 
+  scale_fill_continuous(low = "white", high = "blue") +
+  theme_minimal()
+
+HeatMapNC
+
+```
 
 
