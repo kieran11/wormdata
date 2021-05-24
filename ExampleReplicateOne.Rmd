@@ -1,0 +1,115 @@
+---
+title: "Example for Replicate One"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE , message = FALSE)
+```
+
+
+```{r read_in , echo = FALSE}
+### install.packages(dplyr)
+### install.package(ggplot2)
+
+library(dplyr)
+library(ggplot2)
+
+nms = paste0("X", seq(1,13,1))
+
+Matrices = readr::read_csv("Liquid Assay Data for R (Including Outliers).csv",
+                           col_names = FALSE ) %>%
+  purrr::set_names(nms)
+
+CreateSplites = Matrices %>%
+  mutate(ReplicateInd = ifelse(!is.na(X13) , paste0("REP",row_number() ), NA)) %>%
+  tidyr::fill(ReplicateInd, .direction = "down") %>%
+  filter(!is.na(X1)) %>%
+  split(.$ReplicateInd)
+
+Indice = as.list( seq(1, length(CreateSplites),1) )
+
+```
+
+```{r get_control, echo = FALSE}
+
+Scalar = CreateSplites[[1]] %>%
+  select(13) %>%
+  filter(row_number() == 1) %>%
+  pull(X13)
+```
+
+**The scalar is `r Scalar` from replicate one. **
+
+```{r before_control , echo = FALSE}
+
+gt::gt(CreateSplites[[1]] %>% 
+         mutate_if(is.numeric, ~round(. , digits = 4))) %>% 
+   gt::tab_options(
+    table.font.size = 12
+  )
+
+```
+
+
+
+```{css, echo=FALSE}
+.watch-out {
+  background-color: lightpink;
+  border: 3px solid red;
+  font-weight: bold;
+}
+```
+
+
+
+
+**This code divides all columns and rows by the scalar, `r Scalar`:**
+
+
+
+```{r class.source="watch-out"}
+
+Matrices2 = CreateSplites[[1]] %>%
+  select(1:12) %>%
+  mutate_all(funs(./Scalar))
+
+```  
+
+```{r after_control, echo = FALSE}
+
+gt::gt(Matrices2 %>% 
+         mutate_if(is.numeric, ~round(. , digits = 4))) %>% 
+   gt::tab_options(
+    table.font.size = 12
+  )
+
+```
+
+
+```{r diagonals, echo = FALSE}
+
+Matrices3 = Matrices2 %>%
+  purrr::set_names(LETTERS[1:12]) %>%
+  mutate(RowNms = LETTERS[1:12]) %>%
+  tidyr::gather(Key, value, -RowNms)
+  
+  
+Diagonal_a = Matrices2 %>%
+  as.matrix(.) %>%
+  diag()
+  
+FullGrid = expand.grid(LETTERS[1:12], LETTERS[1:12])
+Diagonal = tibble(Letters = LETTERS[1:12], val = Diagonal_a)
+  
+Products = FullGrid %>%
+  inner_join(Diagonal , by = c("Var1" = "Letters") ) %>%
+  inner_join(Diagonal , by = c("Var2" = "Letters") ) %>%
+  filter(Var1 != Var2) %>%
+  mutate(DiagonalProducts = val.x * val.y) %>%
+  inner_join(Matrices3 , by = c("Var1"="RowNms", "Var2" = "Key")) %>%
+  mutate(ReplicateNumber = paste0("Replicate-",1))
+  
+
+```
+
